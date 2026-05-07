@@ -1,0 +1,36 @@
+name: Build and Deploy
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+
+    - name: Login a DockerHub
+      run: echo "${{ secrets.DH_TOKEN }}" | docker login -u "${{ secrets.DH_USUARIO }}" --password-stdin
+
+    - name: Build imagen Docker
+      run: docker build -t ${{ secrets.DH_USUARIO }}/fastapi:latest .
+
+    - name: Push a DockerHub
+      run: docker push ${{ secrets.DH_USUARIO }}/fastapi:latest
+
+    - name: Desplegar en AWS
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.AMZ_IP }}
+        username: ${{ secrets.AMZ_USUARIO }}
+        key: ${{ secrets.AMZ_CLAVE }}
+        script: |
+          docker stop fastapi || true
+          docker rm fastapi || true
+          docker pull ${{ secrets.DH_USUARIO }}/fastapi:latest
+          docker run -d --name fastapi -p 80:8000 ${{ secrets.DH_USUARIO }}/fastapi:latest
